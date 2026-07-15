@@ -48,7 +48,12 @@ bool Radio::init()
     wifi_init_config_t wifi_cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&wifi_cfg));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ESP_ERROR_CHECK(esp_wifi_set_protocol(WIFI_IF_STA,
+                     WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N | WIFI_PROTOCOL_LR));
     ESP_ERROR_CHECK(esp_wifi_start());
+
+    // TX power: 20 dBm (max), value in 0.25 dBm units
+    esp_wifi_set_max_tx_power(cfg::WIFI_TX_POWER_DB8);
 
     if (cfg::WIFI_CHANNEL > 0) {
         esp_wifi_set_channel(cfg::WIFI_CHANNEL, WIFI_SECOND_CHAN_NONE);
@@ -76,6 +81,17 @@ bool Radio::init()
     }
 
     ESP_LOGI(TAG, "ESP-NOW ready");
+
+    // ESP-NOW fixed rate (must be called after esp_now_init + esp_now_add_peer)
+    esp_now_rate_config_t rate_cfg = {};
+
+    rate_cfg.phymode = WIFI_PHY_MODE_LR;
+    rate_cfg.rate    = WIFI_PHY_RATE_LORA_500K;   // 250 Kbps, 900+м
+
+    rate_cfg.ersu = false;
+    rate_cfg.dcm  = false;
+    esp_now_set_peer_rate_config(cfg::BROADCAST_MAC, &rate_cfg);
+
     return true;
 }
 

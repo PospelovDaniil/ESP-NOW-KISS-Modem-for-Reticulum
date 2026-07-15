@@ -8,17 +8,26 @@
 
 namespace cfg {
 
-// UART
+// UART — KISS (USB)
 inline constexpr uart_port_t UART_PORT       = UART_NUM_0;
 inline constexpr int         UART_BAUD       = 115200;
 inline constexpr int         UART_TX_PIN     = 1;   // GPIO1
 inline constexpr int         UART_RX_PIN     = 3;   // GPIO3
 inline constexpr int         UART_BUF_SIZE   = 4096;
 
+// UART — Debug
+inline constexpr uart_port_t DEBUG_UART_PORT = UART_NUM_2;
+inline constexpr int         DEBUG_UART_BAUD = 115200;
+inline constexpr int         DEBUG_TX_PIN    = 17;  // GPIO17
+inline constexpr int         DEBUG_RX_PIN    = 16;  // GPIO16
+
 // ESP-NOW
 inline constexpr uint8_t     BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-inline constexpr int         WIFI_CHANNEL     = 0;   // 0 = follow STA
+inline constexpr int         WIFI_CHANNEL     = 1;
 inline constexpr int         ESPNOW_ENCRYPT   = false;
+inline constexpr size_t      ESPNOW_MAX_PAYLOAD = 250;
+inline constexpr size_t      FRAG_HEADER_SIZE  = 1;    // 1 byte fragment header
+inline constexpr size_t      FRAG_MAX_DATA     = ESPNOW_MAX_PAYLOAD - FRAG_HEADER_SIZE; // 249
 
 // KISS
 inline constexpr uint8_t     KISS_FEND  = 0xC0;
@@ -28,6 +37,9 @@ inline constexpr uint8_t     KISS_TFESC = 0xDD;
 inline constexpr uint8_t     KISS_CMD_DATA    = 0x00;
 inline constexpr uint8_t     KISS_CMD_RETURN  = 0xFF;
 inline constexpr size_t      KISS_MAX_FRAME   = 500;  // matches RNS MTU
+
+// LED
+inline constexpr int         LED_GPIO        = 2;
 
 // FreeRTOS
 inline constexpr uint32_t    TASK_STACK       = 4096;

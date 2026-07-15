@@ -30,7 +30,8 @@ bool KissCodec::decode_feed(uint8_t byte)
 
     case State::IN_FRAME:
         if (byte == cfg::KISS_FEND) {
-            if (pos_ > 0) {
+            if (has_cmd_) {
+                frame_.payload_len = pos_;
                 return true;   // complete frame received
             }
             break;             // consecutive FENDs — stay in IN_FRAME
@@ -67,7 +68,7 @@ bool KissCodec::decode_feed(uint8_t byte)
 
 bool KissCodec::decode_end()
 {
-    if (state_ == State::IN_FRAME && pos_ > 0) {
+    if (state_ == State::IN_FRAME && has_cmd_) {
         frame_.payload_len = pos_;
         return true;
     }

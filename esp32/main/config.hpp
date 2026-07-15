@@ -13,7 +13,7 @@ inline constexpr uart_port_t UART_PORT       = UART_NUM_0;
 inline constexpr int         UART_BAUD       = 115200;
 inline constexpr int         UART_TX_PIN     = 1;   // GPIO1
 inline constexpr int         UART_RX_PIN     = 3;   // GPIO3
-inline constexpr int         UART_BUF_SIZE   = 2048;
+inline constexpr int         UART_BUF_SIZE   = 4096;
 
 // ESP-NOW
 inline constexpr uint8_t     BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};

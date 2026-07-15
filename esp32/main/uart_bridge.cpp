@@ -2,6 +2,7 @@
 
 #include "driver/uart.h"
 #include "esp_log.h"
+#include "esp_intr_alloc.h"
 
 static const char* TAG = "uart";
 
@@ -25,9 +26,10 @@ bool UartBridge::init()
     ESP_ERROR_CHECK(uart_driver_install(cfg::UART_PORT,
                                         cfg::UART_BUF_SIZE,
                                         cfg::UART_BUF_SIZE,
-                                        0, nullptr, 0));
+                                        0, nullptr,
+                                        ESP_INTR_FLAG_IRAM));
 
-    ESP_LOGI(TAG, "UART ready (baud=%d)", cfg::UART_BAUD);
+    ESP_LOGI(TAG, "UART ready (baud=%d, buf=%d)", cfg::UART_BAUD, cfg::UART_BUF_SIZE);
     return true;
 }
 

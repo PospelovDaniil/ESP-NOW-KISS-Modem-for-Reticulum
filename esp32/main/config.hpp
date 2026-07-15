@@ -18,14 +18,14 @@ namespace cfg {
 
 // UART — KISS (USB)
 inline constexpr uart_port_t UART_PORT       = UART_NUM_0;
-inline constexpr int         UART_BAUD       = 115200;
+inline constexpr int         UART_BAUD       = 57'600;
 inline constexpr int         UART_TX_PIN     = 1;   // GPIO1
 inline constexpr int         UART_RX_PIN     = 3;   // GPIO3
-inline constexpr int         UART_BUF_SIZE   = 8192;
+inline constexpr int         UART_BUF_SIZE   = 8'192;
 
 // UART — Debug
 inline constexpr uart_port_t DEBUG_UART_PORT = UART_NUM_2;
-inline constexpr int         DEBUG_UART_BAUD = 921600;
+inline constexpr int         DEBUG_UART_BAUD = 921'600;
 inline constexpr int         DEBUG_TX_PIN    = 17;  // GPIO17
 inline constexpr int         DEBUG_RX_PIN    = 16;  // GPIO16
 

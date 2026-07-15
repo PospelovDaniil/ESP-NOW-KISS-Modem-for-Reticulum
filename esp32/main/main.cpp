@@ -1,6 +1,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <freertos/queue.h>
+#include <freertos/semphr.h>
 
 #include "driver/gpio.h"
 #include "driver/uart.h"
@@ -28,14 +29,56 @@ static const char* TAG = "main";
 #define LOGI_R(rtag, ...) do {} while(0)
 #endif
 
-// ── debug UART output ─────────────────────────────────────────
+// ── async log: ring buffer + low-priority task ─────────────────
 #if DEBUG_LOGS
+static constexpr size_t LOG_BUF_SIZE    = 4096;
+static constexpr size_t LOG_MSG_MAX     = 256;
+static char             s_log_buf[LOG_BUF_SIZE];
+static size_t           s_log_head = 0;   // write position
+static size_t           s_log_tail = 0;   // read position
+static size_t           s_log_used = 0;   // bytes in buffer
+static SemaphoreHandle_t s_log_sem;
+
+static size_t log_buf_free() { return LOG_BUF_SIZE - s_log_used; }
+
+static void log_write(const char* data, size_t len)
+{
+    if (len > log_buf_free()) return;  // drop if full
+    for (size_t i = 0; i < len; ++i) {
+        s_log_buf[s_log_head] = data[i];
+        s_log_head = (s_log_head + 1) % LOG_BUF_SIZE;
+    }
+    s_log_used += len;
+    xSemaphoreGive(s_log_sem);
+}
+
+static void log_task(void*)
+{
+    char chunk[128];
+    for (;;) {
+        xSemaphoreTake(s_log_sem, pdMS_TO_TICKS(50));
+
+        while (s_log_used > 0) {
+            size_t to_read = s_log_used;
+            if (to_read > sizeof(chunk)) to_read = sizeof(chunk);
+
+            for (size_t i = 0; i < to_read; ++i) {
+                chunk[i] = s_log_buf[s_log_tail];
+                s_log_tail = (s_log_tail + 1) % LOG_BUF_SIZE;
+            }
+            s_log_used -= to_read;
+
+            uart_write_bytes(cfg::DEBUG_UART_PORT, chunk, to_read);
+        }
+    }
+}
+
 static int debug_vprintf(const char* fmt, va_list args)
 {
-    char buf[512];
+    char buf[LOG_MSG_MAX];
     int len = vsnprintf(buf, sizeof(buf), fmt, args);
     if (len > 0) {
-        uart_write_bytes(cfg::DEBUG_UART_PORT, buf, len);
+        log_write(buf, len);
     }
     return len;
 }
@@ -57,6 +100,9 @@ static void debug_uart_init()
     uart_set_pin(cfg::DEBUG_UART_PORT,
                  cfg::DEBUG_TX_PIN, cfg::DEBUG_RX_PIN,
                  UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+
+    s_log_sem = xSemaphoreCreateBinary();
+    xTaskCreatePinnedToCore(log_task, "log", 2048, nullptr, 1, nullptr, 1);
 
     esp_log_set_vprintf(debug_vprintf);
 }
@@ -346,8 +392,8 @@ extern "C" void app_main(void)
     s_radio.init();
     s_radio.set_recv_callback(on_radio_recv);
 
-    xTaskCreate(uart_rx_task,   "uart_rx",   cfg::TASK_STACK, nullptr, cfg::TASK_PRIO, nullptr);
-    xTaskCreate(espnow_rx_task, "espnow_rx", cfg::TASK_STACK, nullptr, cfg::TASK_PRIO, nullptr);
+    xTaskCreatePinnedToCore(uart_rx_task,   "uart_rx",   cfg::TASK_STACK, nullptr, cfg::TASK_PRIO, nullptr, 1);
+    xTaskCreatePinnedToCore(espnow_rx_task, "espnow_rx", cfg::TASK_STACK, nullptr, cfg::TASK_PRIO, nullptr, 0);
 
     LOGI("modem running");
 }

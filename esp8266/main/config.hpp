@@ -27,7 +27,7 @@ inline constexpr uint8_t     KISS_TFEND = 0xDC;
 inline constexpr uint8_t     KISS_TFESC = 0xDD;
 inline constexpr uint8_t     KISS_CMD_DATA    = 0x00;
 inline constexpr uint8_t     KISS_CMD_RETURN  = 0xFF;
-inline constexpr size_t      KISS_MAX_FRAME   = 1500;
+inline constexpr size_t      KISS_MAX_FRAME   = 500;  // matches RNS MTU
 
 // FreeRTOS
 inline constexpr uint32_t    TASK_STACK       = 2048;

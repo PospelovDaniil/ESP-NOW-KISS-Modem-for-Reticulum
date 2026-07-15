@@ -83,7 +83,7 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
 // ── task: ESP-NOW RX → UART TX ────────────────────────────────
 static void espnow_rx_task(void*)
 {
-    uint8_t kiss_buf[cfg::KISS_MAX_FRAME + 16];   // encoded frame
+    uint8_t kiss_buf[cfg::KISS_MAX_FRAME * 2 + 3];  // worst case: every byte stuffed   // encoded frame
     RxPacket pkt;
 
     ESP_LOGI(TAG, "espnow_rx_task started");

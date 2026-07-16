@@ -187,6 +187,7 @@ struct Stats {
     uint32_t rx_reasm_ovf;    // reassembly buffer overflow
     uint32_t rx_bad_len;      // ESP-NOW RX bad length
     uint32_t rx_bad_hdr;      // bad fragment header
+    uint32_t rx_bad_crc;      // CRC16 mismatch
     uint32_t uart_buf_peak;   // max UART RX buffer level seen (bytes)
 };
 
@@ -204,10 +205,10 @@ static void stats_dump()
     LOGI("  TX: frames=%lu frags=%lu send_fail=%lu frag_fail=%lu uart_drop=%lu",
          s_stats.tx_frames, s_stats.tx_frags,
          s_stats.tx_send_fail, s_stats.tx_frag_fail, s_stats.tx_uart_drop);
-    LOGI("  RX: frames=%lu frags=%lu q_full=%lu reasm_ovf=%lu bad_len=%lu bad_hdr=%lu",
+    LOGI("  RX: frames=%lu frags=%lu q_full=%lu reasm_ovf=%lu bad_len=%lu bad_hdr=%lu bad_crc=%lu",
          s_stats.rx_frames, s_stats.rx_frags,
          s_stats.rx_queue_full, s_stats.rx_reasm_ovf,
-         s_stats.rx_bad_len, s_stats.rx_bad_hdr);
+         s_stats.rx_bad_len, s_stats.rx_bad_hdr, s_stats.rx_bad_crc);
     LOGI("  UART RX buf peak: %lu bytes (buf_size=%d)",
          s_stats.uart_buf_peak, cfg::UART_BUF_SIZE);
     s_stats.uart_buf_peak = 0;
@@ -241,6 +242,22 @@ static void led_blink(int count, int ms_on, int ms_off)
 #else
     (void)count; (void)ms_on; (void)ms_off;
 #endif
+}
+
+// ── CRC16 (CCITT, poly=0x1021, init=0xFFFF) ────────────────────
+static uint16_t crc16_ccitt(const uint8_t* data, size_t len)
+{
+    uint16_t crc = 0xFFFF;
+    for (size_t i = 0; i < len; ++i) {
+        crc ^= (uint16_t)data[i] << 8;
+        for (int j = 0; j < 8; ++j) {
+            if (crc & 0x8000)
+                crc = (crc << 1) ^ 0x1021;
+            else
+                crc <<= 1;
+        }
+    }
+    return crc;
 }
 
 // ── fragmentation ──────────────────────────────────────────────
@@ -339,13 +356,20 @@ static void uart_rx_task(void*)
             continue;
         }
 
+        uint16_t crc = crc16_ccitt(f.payload, f.payload_len);
+        uint8_t frame_with_crc[cfg::KISS_MAX_FRAME + 2];
+        memcpy(frame_with_crc, f.payload, f.payload_len);
+        frame_with_crc[f.payload_len]     = crc >> 8;
+        frame_with_crc[f.payload_len + 1] = crc & 0xFF;
+        size_t frame_len = f.payload_len + 2;
+
         LOGI("TX %zu bytes via ESP-NOW (%s)",
-                 f.payload_len,
-                 (f.payload_len > cfg::FRAG_MAX_DATA) ? "fragmented" : "single");
+                 frame_len,
+                 (frame_len > cfg::FRAG_MAX_DATA) ? "fragmented" : "single");
 
-        log_hex_line(TAG, "TX", f.payload, f.payload_len);
+        log_hex_line(TAG, "TX", frame_with_crc, frame_len);
 
-        send_fragmented(f.payload, f.payload_len);
+        send_fragmented(frame_with_crc, frame_len);
         s_stats.tx_frames++;
 
         stats_dump();
@@ -387,22 +411,40 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
     memcpy(pkt.src_mac, src_mac, 6);
     pkt.rssi = rssi;
 
-    static uint8_t reasm_buf[cfg::KISS_MAX_FRAME];
+    static uint8_t reasm_buf[cfg::KISS_MAX_FRAME + 2];
     static size_t  reasm_len = 0;
 
     if (!more) {
         // last fragment or single — combine with reassembly buffer
         size_t total = reasm_len + payload_len;
-        if (total > cfg::KISS_MAX_FRAME) {
+        if (total > cfg::KISS_MAX_FRAME + 2) {
             LOGW("reassembly overflow (%zu), dropping", total);
             s_stats.rx_reasm_ovf++;
             reasm_len = 0;
             return;
         }
         memcpy(reasm_buf + reasm_len, payload, payload_len);
-        pkt.len = static_cast<uint16_t>(total);
-        memcpy(pkt.data, reasm_buf, total);
         reasm_len = 0;
+
+        if (total < 3) {
+            LOGW("frame too short for CRC (%zu), dropping", total);
+            s_stats.rx_bad_crc++;
+            return;
+        }
+
+        size_t data_len = total - 2;
+        uint16_t recv_crc = ((uint16_t)reasm_buf[data_len] << 8) | reasm_buf[data_len + 1];
+        uint16_t calc_crc = crc16_ccitt(reasm_buf, data_len);
+
+        if (recv_crc != calc_crc) {
+            LOGW("CRC16 mismatch: recv=0x%04x calc=0x%04x len=%zu, dropping",
+                 recv_crc, calc_crc, data_len);
+            s_stats.rx_bad_crc++;
+            return;
+        }
+
+        pkt.len = static_cast<uint16_t>(data_len);
+        memcpy(pkt.data, reasm_buf, data_len);
 
         if (xQueueSend(s_rx_queue, &pkt, 0) != pdTRUE) {
             LOGW("RX queue FULL, dropping");

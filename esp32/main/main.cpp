@@ -18,9 +18,9 @@
 static const char* TAG = "main";
 
 #if DEBUG_LOGS
-#define LOGI(...) ESP_LOGI(TAG, __VA_ARGS__)
-#define LOGW(...) ESP_LOGW(TAG, __VA_ARGS__)
-#define LOGE(...) ESP_LOGE(TAG, __VA_ARGS__)
+#define LOGI(...) ESP_LOGI(__FILE_NAME__, __VA_ARGS__)
+#define LOGW(...) ESP_LOGW(__FILE_NAME__, __VA_ARGS__)
+#define LOGE(...) ESP_LOGE(__FILE_NAME__, __VA_ARGS__)
 #define LOGI_R(rtag, ...) ESP_LOGI(rtag, __VA_ARGS__)
 #else
 #define LOGI(...) do {} while(0)
@@ -29,10 +29,16 @@ static const char* TAG = "main";
 #define LOGI_R(rtag, ...) do {} while(0)
 #endif
 
+#if DEBUG_VERBOSE
+#define LOGD(...) ESP_LOGD(__FILE_NAME__, __VA_ARGS__)
+#else
+#define LOGD(...) do {} while(0)
+#endif
+
 // ── async log: ring buffer + low-priority task ─────────────────
 #if DEBUG_LOGS
-static constexpr size_t LOG_BUF_SIZE    = 4096;
-static constexpr size_t LOG_MSG_MAX     = 256;
+static constexpr size_t LOG_BUF_SIZE    = 8192;
+static constexpr size_t LOG_MSG_MAX     = 1200;
 static char             s_log_buf[LOG_BUF_SIZE];
 static size_t           s_log_head = 0;   // write position
 static size_t           s_log_tail = 0;   // read position
@@ -113,25 +119,42 @@ static void debug_uart_init() {}
 static void log_hex(const char* tag, const char* prefix,
                      const uint8_t* data, size_t len)
 {
+#if DEBUG_VERBOSE
+    char hex[1024];
+    size_t pos = 0;
+    for (size_t i = 0; i < len && pos + 3 < sizeof(hex); ++i) {
+        pos += snprintf(hex + pos, sizeof(hex) - pos, "%02x", data[i]);
+    }
+    ESP_LOGD(tag, "%s [%zu]: %s", prefix, len, hex);
+#else
+    (void)tag; (void)prefix; (void)data; (void)len;
+#endif
+}
+
+static void log_hex_line(const char* tag, const char* dir,
+                          const uint8_t* data, size_t len)
+{
 #if DEBUG_LOGS
     char hex[1024];
     size_t pos = 0;
     for (size_t i = 0; i < len && pos + 3 < sizeof(hex); ++i) {
         pos += snprintf(hex + pos, sizeof(hex) - pos, "%02x", data[i]);
     }
-    ESP_LOGI(tag, "%s [%zu]: %s", prefix, len, hex);
+    ESP_LOGI(tag, "%s [%zu] %s", dir, len, hex);
 #else
-    (void)tag; (void)prefix; (void)data; (void)len;
+    (void)tag; (void)dir; (void)data; (void)len;
 #endif
 }
 
 // ── raw capture buffer for tests ───────────────────────────────
+#if DEBUG_VERBOSE
 static uint8_t  s_capture_buf[4096];
 static size_t   s_capture_len = 0;
+#endif
 
 static void capture_raw(uint8_t byte)
 {
-#if DEBUG_LOGS
+#if DEBUG_VERBOSE
     if (s_capture_len < sizeof(s_capture_buf)) {
         s_capture_buf[s_capture_len++] = byte;
     }
@@ -142,13 +165,52 @@ static void capture_raw(uint8_t byte)
 
 static void dump_capture()
 {
-#if DEBUG_LOGS
+#if DEBUG_VERBOSE
     if (s_capture_len == 0) return;
-    LOGI("=== RAW UART %zu bytes ===", s_capture_len);
+    LOGD("=== RAW UART %zu bytes ===", s_capture_len);
     log_hex(TAG, "raw", s_capture_buf, s_capture_len);
-    LOGI("=== END RAW ===");
+    LOGD("=== END RAW ===");
     s_capture_len = 0;
 #endif
+}
+
+// ── statistics ─────────────────────────────────────────────────
+struct Stats {
+    uint32_t tx_frames;       // KISS frames sent to ESP-NOW
+    uint32_t tx_frags;        // individual fragments sent
+    uint32_t tx_send_fail;    // esp_now_send() returned error
+    uint32_t tx_frag_fail;    // send_broadcast() returned false
+    uint32_t tx_uart_drop;    // KISS frames dropped (UART buffer overflow)
+    uint32_t rx_frames;       // complete reassembled frames from ESP-NOW
+    uint32_t rx_frags;        // individual fragments received
+    uint32_t rx_queue_full;   // RX queue overflow
+    uint32_t rx_reasm_ovf;    // reassembly buffer overflow
+    uint32_t rx_bad_len;      // ESP-NOW RX bad length
+    uint32_t rx_bad_hdr;      // bad fragment header
+    uint32_t uart_buf_peak;   // max UART RX buffer level seen (bytes)
+};
+
+static Stats s_stats = {};
+static uint32_t s_last_stats_tick = 0;
+static constexpr uint32_t STATS_INTERVAL_MS = 10000;  // dump every 10s
+
+static void stats_dump()
+{
+    uint32_t now = xTaskGetTickCount() * portTICK_PERIOD_MS;
+    if (now - s_last_stats_tick < STATS_INTERVAL_MS) return;
+    s_last_stats_tick = now;
+
+    LOGI("=== STATS (last %lus) ===", STATS_INTERVAL_MS / 1000);
+    LOGI("  TX: frames=%lu frags=%lu send_fail=%lu frag_fail=%lu uart_drop=%lu",
+         s_stats.tx_frames, s_stats.tx_frags,
+         s_stats.tx_send_fail, s_stats.tx_frag_fail, s_stats.tx_uart_drop);
+    LOGI("  RX: frames=%lu frags=%lu q_full=%lu reasm_ovf=%lu bad_len=%lu bad_hdr=%lu",
+         s_stats.rx_frames, s_stats.rx_frags,
+         s_stats.rx_queue_full, s_stats.rx_reasm_ovf,
+         s_stats.rx_bad_len, s_stats.rx_bad_hdr);
+    LOGI("  UART RX buf peak: %lu bytes (buf_size=%d)",
+         s_stats.uart_buf_peak, cfg::UART_BUF_SIZE);
+    s_stats.uart_buf_peak = 0;
 }
 
 // ── shared objects ─────────────────────────────────────────────
@@ -186,6 +248,8 @@ static constexpr uint8_t FRAG_MORE = 0x80;
 
 static void send_fragmented(const uint8_t* data, size_t len)
 {
+    s_radio.drain_send();
+
     size_t offset = 0;
 
     while (offset < len) {
@@ -201,15 +265,17 @@ static void send_fragmented(const uint8_t* data, size_t len)
         pkt[0] = header;
         memcpy(pkt + 1, data + offset, chunk);
 
-        LOGI("  frag hdr=0x%02x offset=%zu/%zu chunk=%zu",
+        LOGD("  frag hdr=0x%02x offset=%zu/%zu chunk=%zu",
                  header, offset, len, chunk);
 
         bool ok = s_radio.send_broadcast(pkt, 1 + chunk);
         if (!ok) {
-            LOGE("  frag send FAILED");
+            LOGW("frag send FAILED, frame dropped");
+            s_stats.tx_frag_fail++;
             return;
         }
 
+        s_stats.tx_frags++;
         offset += chunk;
     }
 }
@@ -223,7 +289,9 @@ static void uart_rx_task(void*)
 
     for (;;) {
         codec.decode_begin();
+#if DEBUG_VERBOSE
         s_capture_len = 0;
+#endif
 
         for (;;) {
             int byte = s_uart.read_byte();
@@ -238,12 +306,26 @@ static void uart_rx_task(void*)
 
         dump_capture();
 
+        // check UART RX buffer level
+        size_t uart_buf_level = 0;
+        if (uart_get_buffered_data_len(cfg::UART_PORT, &uart_buf_level) == ESP_OK) {
+            if (uart_buf_level > s_stats.uart_buf_peak) {
+                s_stats.uart_buf_peak = uart_buf_level;
+            }
+            if (uart_buf_level > cfg::UART_BUF_SIZE * 70 / 100) {
+                LOGW("UART RX buf %zu/%d bytes (%zu%%)",
+                     uart_buf_level, cfg::UART_BUF_SIZE,
+                     uart_buf_level * 100 / cfg::UART_BUF_SIZE);
+            }
+        }
+
         const KissFrame& f = codec.frame();
 
-        LOGI("KISS frame: cmd=0x%02x payload_len=%zu",
+        LOGD("KISS frame: cmd=0x%02x payload_len=%zu",
                  f.command, f.payload_len);
 
         if (f.payload_len > 0) {
+            log_hex_line(TAG, "KISS TX", f.payload, f.payload_len);
             log_hex(TAG, "KISS payload", f.payload, f.payload_len);
         }
 
@@ -261,7 +343,12 @@ static void uart_rx_task(void*)
                  f.payload_len,
                  (f.payload_len > cfg::FRAG_MAX_DATA) ? "fragmented" : "single");
 
+        log_hex_line(TAG, "TX", f.payload, f.payload_len);
+
         send_fragmented(f.payload, f.payload_len);
+        s_stats.tx_frames++;
+
+        stats_dump();
 
         led_blink(3, 50, 50);
     }
@@ -280,6 +367,7 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
 {
     if (len < 1 || len > cfg::ESPNOW_MAX_PAYLOAD) {
         LOGW("ESP-NOW RX: bad len %zu, dropping", len);
+        s_stats.rx_bad_len++;
         return;
     }
 
@@ -288,10 +376,12 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
     const uint8_t* payload = data + 1;
     size_t payload_len = len - 1;
 
-    LOGI("ESP-NOW RX cb: %02x:%02x:%02x:%02x:%02x:%02x len=%zu hdr=0x%02x RSSI=%d",
+    LOGD("ESP-NOW RX cb: %02x:%02x:%02x:%02x:%02x:%02x len=%zu hdr=0x%02x RSSI=%d",
              src_mac[0], src_mac[1], src_mac[2],
              src_mac[3], src_mac[4], src_mac[5],
              len, header, rssi);
+
+    s_stats.rx_frags++;
 
     RxPacket pkt;
     memcpy(pkt.src_mac, src_mac, 6);
@@ -305,6 +395,7 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
         size_t total = reasm_len + payload_len;
         if (total > cfg::KISS_MAX_FRAME) {
             LOGW("reassembly overflow (%zu), dropping", total);
+            s_stats.rx_reasm_ovf++;
             reasm_len = 0;
             return;
         }
@@ -315,15 +406,19 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
 
         if (xQueueSend(s_rx_queue, &pkt, 0) != pdTRUE) {
             LOGW("RX queue FULL, dropping");
+            s_stats.rx_queue_full++;
+        } else {
+            s_stats.rx_frames++;
         }
     } else {
         // middle fragment — append to reassembly buffer
         if (reasm_len + payload_len <= cfg::KISS_MAX_FRAME) {
             memcpy(reasm_buf + reasm_len, payload, payload_len);
             reasm_len += payload_len;
-            LOGI("  frag stored: %zu (total %zu)", payload_len, reasm_len);
+            LOGD("  frag stored: %zu (total %zu)", payload_len, reasm_len);
         } else {
             LOGW("  reassembly overflow, dropping");
+            s_stats.rx_reasm_ovf++;
             reasm_len = 0;
         }
     }
@@ -342,20 +437,22 @@ static void espnow_rx_task(void*)
             continue;
         }
 
-        LOGI("ESP-NOW RX: from %02x:%02x:%02x:%02x:%02x:%02x RSSI=%d len=%u",
+        LOGD("ESP-NOW RX: from %02x:%02x:%02x:%02x:%02x:%02x RSSI=%d len=%u",
                  pkt.src_mac[0], pkt.src_mac[1], pkt.src_mac[2],
                  pkt.src_mac[3], pkt.src_mac[4], pkt.src_mac[5],
                  pkt.rssi, pkt.len);
 
         log_hex(TAG, "ESP-NOW payload", pkt.data, pkt.len);
 
+        log_hex_line(TAG, "KISS RX", pkt.data, pkt.len);
+
         size_t encoded = KissCodec::encode(pkt.data, pkt.len,
                                            kiss_buf, sizeof(kiss_buf));
         if (encoded > 0) {
             log_hex(TAG, "KISS encoded", kiss_buf, encoded);
 
-            bool ok = s_uart.write(kiss_buf, encoded);
-            LOGI("UART write %zu bytes: %s", encoded, ok ? "OK" : "FAIL");
+            s_uart.write(kiss_buf, encoded);
+            LOGD("UART write %zu bytes", encoded);
 
             led_blink(1, 100, 0);
         }
@@ -383,6 +480,7 @@ extern "C" void app_main(void)
          cfg::DEBUG_UART_PORT, cfg::DEBUG_TX_PIN, cfg::DEBUG_RX_PIN, cfg::DEBUG_UART_BAUD);
     LOGI("ESP-NOW channel %d, broadcast, frag_max=%zu",
          cfg::WIFI_CHANNEL, cfg::FRAG_MAX_DATA);
+    LOGI("Stats dump every %lu ms", STATS_INTERVAL_MS);
 #endif
 
     s_rx_queue = xQueueCreate(cfg::QUEUE_SIZE, sizeof(RxPacket));

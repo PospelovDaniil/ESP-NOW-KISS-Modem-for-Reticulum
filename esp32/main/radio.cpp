@@ -99,18 +99,18 @@ bool Radio::init()
     return true;
 }
 
-bool Radio::send_broadcast(const uint8_t* data, size_t len)
+SendResult Radio::send_broadcast(const uint8_t* data, size_t len)
 {
     esp_err_t err = esp_now_send(cfg::BROADCAST_MAC, data, len);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "send error: %s", esp_err_to_name(err));
-        return false;
+        return SendResult::ERROR;
     }
     if (xSemaphoreTake(send_sem_, pdMS_TO_TICKS(100)) != pdTRUE) {
         ESP_LOGW(TAG, "send timeout (callback not received)");
-        return false;
+        return SendResult::TIMEOUT;
     }
-    return true;
+    return SendResult::OK;
 }
 
 void Radio::drain_send()

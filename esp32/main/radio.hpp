@@ -14,10 +14,12 @@ using RadioRecvCallback = std::function<void(const uint8_t* src_mac,
                                              const uint8_t* data,
                                              size_t len)>;
 
+enum class SendResult { OK, ERROR, TIMEOUT };
+
 class Radio {
 public:
     bool init();
-    bool send_broadcast(const uint8_t* data, size_t len);
+    SendResult send_broadcast(const uint8_t* data, size_t len);
     void drain_send();
     void set_recv_callback(RadioRecvCallback cb) { recv_cb_ = std::move(cb); }
     void get_own_mac(uint8_t* mac) const;

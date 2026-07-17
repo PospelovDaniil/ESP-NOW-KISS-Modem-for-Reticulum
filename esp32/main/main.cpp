@@ -234,17 +234,27 @@ static void led_blink(int count, int ms_on, int ms_off)
 }
 
 // ── CRC16 (CCITT, poly=0x1021, init=0xFFFF) ────────────────────
+static uint16_t crc16_table[256];
+static bool     crc16_table_inited = false;
+
+static void crc16_init_table()
+{
+    for (int i = 0; i < 256; ++i) {
+        uint16_t crc = (uint16_t)i << 8;
+        for (int j = 0; j < 8; ++j) {
+            crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) : (crc << 1);
+        }
+        crc16_table[i] = crc;
+    }
+    crc16_table_inited = true;
+}
+
 static uint16_t crc16_ccitt(const uint8_t* data, size_t len)
 {
+    if (!crc16_table_inited) crc16_init_table();
     uint16_t crc = 0xFFFF;
     for (size_t i = 0; i < len; ++i) {
-        crc ^= (uint16_t)data[i] << 8;
-        for (int j = 0; j < 8; ++j) {
-            if (crc & 0x8000)
-                crc = (crc << 1) ^ 0x1021;
-            else
-                crc <<= 1;
-        }
+        crc = (crc << 8) ^ crc16_table[(crc >> 8) ^ data[i]];
     }
     return crc;
 }

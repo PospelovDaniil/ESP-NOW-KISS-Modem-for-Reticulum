@@ -119,30 +119,19 @@ static void debug_uart_init() {}
 static void log_hex(const char* tag, const char* prefix,
                      const uint8_t* data, size_t len)
 {
-#if DEBUG_VERBOSE
+#if DEBUG_LOGS
+    static const char hex_chars[] = "0123456789abcdef";
     char hex[1024];
-    size_t pos = 0;
-    for (size_t i = 0; i < len && pos + 3 < sizeof(hex); ++i) {
-        pos += snprintf(hex + pos, sizeof(hex) - pos, "%02x", data[i]);
+    size_t max_bytes = (sizeof(hex) - 1) / 2;
+    size_t limit = (len > max_bytes) ? max_bytes : len;
+    for (size_t i = 0; i < limit; ++i) {
+        hex[i * 2]     = hex_chars[data[i] >> 4];
+        hex[i * 2 + 1] = hex_chars[data[i] & 0x0F];
     }
-    ESP_LOGD(tag, "%s [%zu]: %s", prefix, len, hex);
+    hex[limit * 2] = '\0';
+    ESP_LOGI(tag, "%s [%zu] %s", prefix, len, hex);
 #else
     (void)tag; (void)prefix; (void)data; (void)len;
-#endif
-}
-
-static void log_hex_line(const char* tag, const char* dir,
-                          const uint8_t* data, size_t len)
-{
-#if DEBUG_LOGS
-    char hex[1024];
-    size_t pos = 0;
-    for (size_t i = 0; i < len && pos + 3 < sizeof(hex); ++i) {
-        pos += snprintf(hex + pos, sizeof(hex) - pos, "%02x", data[i]);
-    }
-    ESP_LOGI(tag, "%s [%zu] %s", dir, len, hex);
-#else
-    (void)tag; (void)dir; (void)data; (void)len;
 #endif
 }
 
@@ -342,7 +331,7 @@ static void uart_rx_task(void*)
                  f.command, f.payload_len);
 
         if (f.payload_len > 0) {
-            log_hex_line(TAG, "KISS TX", f.payload, f.payload_len);
+            log_hex(TAG, "KISS TX", f.payload, f.payload_len);
             log_hex(TAG, "KISS payload", f.payload, f.payload_len);
         }
 
@@ -367,7 +356,7 @@ static void uart_rx_task(void*)
                  frame_len,
                  (frame_len > cfg::FRAG_MAX_DATA) ? "fragmented" : "single");
 
-        log_hex_line(TAG, "TX", frame_with_crc, frame_len);
+        log_hex(TAG, "TX", frame_with_crc, frame_len);
 
         send_fragmented(frame_with_crc, frame_len);
         s_stats.tx_frames++;
@@ -486,7 +475,7 @@ static void espnow_rx_task(void*)
 
         log_hex(TAG, "ESP-NOW payload", pkt.data, pkt.len);
 
-        log_hex_line(TAG, "KISS RX", pkt.data, pkt.len);
+        log_hex(TAG, "KISS RX", pkt.data, pkt.len);
 
         size_t encoded = KissCodec::encode(pkt.data, pkt.len,
                                            kiss_buf, sizeof(kiss_buf));

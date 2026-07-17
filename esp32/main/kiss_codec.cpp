@@ -81,27 +81,22 @@ size_t KissCodec::encode(const uint8_t* src, size_t src_len,
 {
     size_t i = 0;
 
-    auto put = [&](uint8_t b) {
-        if (i < dst_cap) dst[i] = b;
-        ++i;
-    };
-
-    put(cfg::KISS_FEND);
-    put(cfg::KISS_CMD_DATA);
+    if (i < dst_cap) dst[i++] = cfg::KISS_FEND;
+    if (i < dst_cap) dst[i++] = cfg::KISS_CMD_DATA;
 
     for (size_t n = 0; n < src_len; ++n) {
         uint8_t b = src[n];
         if (b == cfg::KISS_FEND) {
-            put(cfg::KISS_FESC);
-            put(cfg::KISS_TFEND);
+            if (i < dst_cap) dst[i++] = cfg::KISS_FESC;
+            if (i < dst_cap) dst[i++] = cfg::KISS_TFEND;
         } else if (b == cfg::KISS_FESC) {
-            put(cfg::KISS_FESC);
-            put(cfg::KISS_TFESC);
+            if (i < dst_cap) dst[i++] = cfg::KISS_FESC;
+            if (i < dst_cap) dst[i++] = cfg::KISS_TFESC;
         } else {
-            put(b);
+            if (i < dst_cap) dst[i++] = b;
         }
     }
 
-    put(cfg::KISS_FEND);
+    if (i < dst_cap) dst[i++] = cfg::KISS_FEND;
     return i;
 }

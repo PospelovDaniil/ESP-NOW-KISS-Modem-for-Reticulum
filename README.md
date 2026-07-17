@@ -18,6 +18,14 @@ ESP-NOW fills the gap between:
 
 Use case: short to medium distance links where WiFi doesn't reach, but you don't need (or want to pay for) LoRa.
 
+## Hardware
+
+Tested on ESP32 DevKit board. Should also build for ESP32-S3, ESP32-C3 and other ESP32 variants.
+
+## Configuration
+
+Radio parameters (PHY rate, Long Range mode) are hardcoded in `radio.cpp`. Default rate is `WIFI_PHY_RATE_LORA_500K`. Changing the rate requires editing the source and reflashing.
+
 ## Current state
 
 - ESP32 firmware working with RNS over KISS
@@ -29,4 +37,5 @@ Use case: short to medium distance links where WiFi doesn't reach, but you don't
 
 ## Future plans
 
+- `ESPNowInterface` for RNS — similar to `RNodeInterface`, but for ESP-NOW, allowing convenient configuration of radio parameters at runtime
 - Backward compatibility between ESP-NOW on ESP32 and ESP8266

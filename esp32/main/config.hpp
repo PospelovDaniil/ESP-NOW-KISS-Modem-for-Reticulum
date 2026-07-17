@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <array>
 
 #include "driver/uart.h"
 #include "esp_wifi.h"

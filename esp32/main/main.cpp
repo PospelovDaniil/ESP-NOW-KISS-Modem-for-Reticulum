@@ -127,7 +127,7 @@ static void log_hex(const char* tag, const char* prefix,
                      const uint8_t* data, size_t len)
 {
 #if DEBUG_LOGS
-    static const char hex_chars[] = "0123456789abcdef";
+    static constexpr char hex_chars[] = "0123456789abcdef";
     char hex[1024];
     size_t max_bytes = (sizeof(hex) - 1) / 2;
     size_t limit = (len > max_bytes) ? max_bytes : len;
@@ -241,7 +241,7 @@ static void led_blink(int count, int ms_on, int ms_off)
 }
 
 // ── CRC16 (CCITT, poly=0x1021, init=0xFFFF) ────────────────────
-static const uint16_t crc16_table[256] = {
+static constexpr uint16_t crc16_table[256] = {
     0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50A5, 0x60C6, 0x70E7,
     0x8108, 0x9129, 0xA14A, 0xB16B, 0xC18C, 0xD1AD, 0xE1CE, 0xF1EF,
     0x1231, 0x0210, 0x3273, 0x2252, 0x52B5, 0x4294, 0x72F7, 0x62D6,

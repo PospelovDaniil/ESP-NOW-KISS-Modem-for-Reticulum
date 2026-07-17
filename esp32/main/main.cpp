@@ -377,7 +377,6 @@ static void uart_rx_task(void*)
 
         if (f.payload_len > 0) {
             log_hex(TAG, "KISS TX", f.payload, f.payload_len);
-            log_hex(TAG, "KISS payload", f.payload, f.payload_len);
         }
 
         if (f.command != cfg::KISS_CMD_DATA) {
@@ -528,8 +527,6 @@ static void espnow_rx_task(void*)
                  pkt.src_mac[0], pkt.src_mac[1], pkt.src_mac[2],
                  pkt.src_mac[3], pkt.src_mac[4], pkt.src_mac[5],
                  pkt.rssi, pkt.len);
-
-        log_hex(TAG, "ESP-NOW payload", pkt.data, pkt.len);
 
         log_hex(TAG, "KISS RX", pkt.data, pkt.len);
 

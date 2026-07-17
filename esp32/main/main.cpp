@@ -17,6 +17,15 @@
 
 static const char* TAG = "main";
 
+// ── task creation: pinned on dual-core, default on single-core ──
+#if CONFIG_FREERTOS_UNICORE
+#define CREATE_TASK(func, name, stack, prio, core) \
+    xTaskCreate(func, name, stack, nullptr, prio, nullptr)
+#else
+#define CREATE_TASK(func, name, stack, prio, core) \
+    xTaskCreatePinnedToCore(func, name, stack, nullptr, prio, nullptr, core)
+#endif
+
 #if DEBUG_LOGS
 #define LOGI(...) ESP_LOGI(__FILE_NAME__, __VA_ARGS__)
 #define LOGW(...) ESP_LOGW(__FILE_NAME__, __VA_ARGS__)
@@ -108,7 +117,7 @@ static void debug_uart_init()
                  UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
 
     s_log_sem = xSemaphoreCreateBinary();
-    xTaskCreatePinnedToCore(log_task, "log", 2048, nullptr, 1, nullptr, 1);
+    CREATE_TASK(log_task, "log", 2048, 1, 1);
 
     esp_log_set_vprintf(debug_vprintf);
 }
@@ -560,8 +569,8 @@ extern "C" void app_main(void)
     s_radio.init();
     s_radio.set_recv_callback(on_radio_recv);
 
-    xTaskCreatePinnedToCore(uart_rx_task,   "uart_rx",   cfg::TASK_STACK, nullptr, cfg::TASK_PRIO, nullptr, 1);
-    xTaskCreatePinnedToCore(espnow_rx_task, "espnow_rx", cfg::TASK_STACK, nullptr, cfg::TASK_PRIO, nullptr, 0);
+    CREATE_TASK(uart_rx_task,   "uart_rx",   cfg::TASK_STACK, cfg::TASK_PRIO, 1);
+    CREATE_TASK(espnow_rx_task, "espnow_rx", cfg::TASK_STACK, cfg::TASK_PRIO, 0);
 
     LOGI("modem running");
 }

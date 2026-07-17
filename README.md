@@ -18,6 +18,10 @@ ESP-NOW fills the gap between:
 
 Use case: short to medium distance links where WiFi doesn't reach, but you don't need (or want to pay for) LoRa.
 
+## Development environment
+
+- ESP-IDF v6.0.2
+
 ## RNS config example
 
 ```ini

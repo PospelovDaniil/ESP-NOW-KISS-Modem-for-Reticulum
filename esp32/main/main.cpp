@@ -269,13 +269,17 @@ static const uint16_t crc16_table[256] = {
     0x6EED, 0x7ECF, 0x4EAF, 0x5E8E, 0x2E69, 0x3E48, 0x0E2B, 0x1E0A
 };
 
-static uint16_t crc16_ccitt(const uint8_t* data, size_t len)
+static uint16_t crc16_ccitt(const uint8_t* data, size_t len, uint16_t crc)
 {
-    uint16_t crc = 0xFFFF;
     for (size_t i = 0; i < len; ++i) {
         crc = (crc << 8) ^ crc16_table[((crc >> 8) ^ data[i]) & 0xFF];
     }
     return crc;
+}
+
+static uint16_t crc16_ccitt(const uint8_t* data, size_t len)
+{
+    return crc16_ccitt(data, len, 0xFFFF);
 }
 
 // ── fragmentation ──────────────────────────────────────────────
@@ -425,7 +429,7 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
 
     s_stats.rx_frags++;
 
-    RxPacket pkt;
+    static RxPacket pkt;
     memcpy(pkt.src_mac, src_mac, 6);
     pkt.rssi = rssi;
 
@@ -433,7 +437,6 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
     static size_t  reasm_len = 0;
 
     if (!more) {
-        // last fragment or single — combine with reassembly buffer
         size_t total = reasm_len + payload_len;
         if (total > cfg::KISS_MAX_FRAME + 2) {
             LOGW("reassembly overflow (%zu), dropping", total);
@@ -441,28 +444,36 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
             reasm_len = 0;
             return;
         }
-        memcpy(reasm_buf + reasm_len, payload, payload_len);
-        reasm_len = 0;
 
         if (total < 3) {
             LOGW("frame too short for CRC (%zu), dropping", total);
             s_stats.rx_bad_crc++;
+            reasm_len = 0;
             return;
         }
 
         size_t data_len = total - 2;
-        uint16_t recv_crc = ((uint16_t)reasm_buf[data_len] << 8) | reasm_buf[data_len + 1];
-        uint16_t calc_crc = crc16_ccitt(reasm_buf, data_len);
+
+        // CRC: incremental over reasm_buf + payload (no merge copy)
+        uint16_t calc_crc = 0xFFFF;
+        calc_crc = crc16_ccitt(reasm_buf, reasm_len, calc_crc);
+        calc_crc = crc16_ccitt(payload, payload_len - 2, calc_crc);
+
+        uint16_t recv_crc = ((uint16_t)payload[payload_len - 2] << 8) | payload[payload_len - 1];
 
         if (recv_crc != calc_crc) {
             LOGW("CRC16 mismatch: recv=0x%04x calc=0x%04x len=%zu, dropping",
                  recv_crc, calc_crc, data_len);
             s_stats.rx_bad_crc++;
+            reasm_len = 0;
             return;
         }
 
+        // copy directly to pkt.data — skip intermediate merge
         pkt.len = static_cast<uint16_t>(data_len);
-        memcpy(pkt.data, reasm_buf, data_len);
+        memcpy(pkt.data, reasm_buf, reasm_len);
+        memcpy(pkt.data + reasm_len, payload, payload_len - 2);
+        reasm_len = 0;
 
         if (xQueueSend(s_rx_queue, &pkt, 0) != pdTRUE) {
             LOGW("RX queue FULL, dropping");
@@ -471,8 +482,7 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
             s_stats.rx_frames++;
         }
     } else {
-        // middle fragment — append to reassembly buffer
-        if (reasm_len + payload_len <= cfg::KISS_MAX_FRAME) {
+        if (reasm_len + payload_len <= cfg::KISS_MAX_FRAME + 2) {
             memcpy(reasm_buf + reasm_len, payload, payload_len);
             reasm_len += payload_len;
             LOGD("  frag stored: %zu (total %zu)", payload_len, reasm_len);

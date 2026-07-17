@@ -7,7 +7,8 @@ void KissCodec::reset()
     state_    = State::SEARCHING;
     pos_      = 0;
     has_cmd_  = false;
-    frame_    = {};
+    frame_.command     = 0;
+    frame_.payload_len = 0;
 }
 
 bool KissCodec::decode_begin()

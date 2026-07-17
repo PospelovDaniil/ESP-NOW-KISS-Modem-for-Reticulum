@@ -316,9 +316,12 @@ static void send_fragmented(const uint8_t* data, size_t len)
         LOGD("  frag hdr=0x%02x offset=%zu/%zu chunk=%zu",
                  header, offset, len, chunk);
 
-        bool ok = s_radio.send_broadcast(pkt, 1 + chunk);
-        if (!ok) {
-            LOGW("frag send FAILED, frame dropped");
+        SendResult res = s_radio.send_broadcast(pkt, 1 + chunk);
+        if (res != SendResult::OK) {
+            LOGW("frag send FAILED (%s), frame dropped",
+                 res == SendResult::TIMEOUT ? "timeout" : "error");
+            if (res == SendResult::ERROR)
+                s_stats.tx_send_fail++;
             s_stats.tx_frag_fail++;
             return;
         }
@@ -361,9 +364,11 @@ static void uart_rx_task(void*)
                 s_stats.uart_buf_peak = uart_buf_level;
             }
             if (uart_buf_level > cfg::UART_BUF_SIZE * 70 / 100) {
-                LOGW("UART RX buf %zu/%d bytes (%zu%%)",
+                LOGW("UART RX buf %zu/%d bytes (%zu%%), dropping frame",
                      uart_buf_level, cfg::UART_BUF_SIZE,
                      uart_buf_level * 100 / cfg::UART_BUF_SIZE);
+                s_stats.tx_uart_drop++;
+                continue;
             }
         }
 
@@ -427,6 +432,11 @@ static void on_radio_recv(const uint8_t* src_mac, int8_t rssi,
     }
 
     uint8_t header = data[0];
+    if (header & 0x7E) {
+        LOGW("bad frag header 0x%02x, dropping", header);
+        s_stats.rx_bad_hdr++;
+        return;
+    }
     bool more = (header & FRAG_MORE) != 0;
     const uint8_t* payload = data + 1;
     size_t payload_len = len - 1;

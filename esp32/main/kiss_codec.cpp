@@ -67,16 +67,6 @@ bool KissCodec::decode_feed(uint8_t byte)
     return false;
 }
 
-bool KissCodec::decode_end()
-{
-    if (state_ == State::IN_FRAME && has_cmd_) {
-        frame_.payload_len = pos_;
-        return true;
-    }
-    reset();
-    return false;
-}
-
 size_t KissCodec::encode(const uint8_t* src, size_t src_len,
                          uint8_t* dst, size_t dst_cap)
 {

@@ -2,7 +2,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <array>
 
 #include "config.hpp"
 
@@ -22,7 +21,6 @@ public:
 
     bool decode_begin();
     bool decode_feed(uint8_t byte);
-    bool decode_end();
 
     const KissFrame& frame() const { return frame_; }
 

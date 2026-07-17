@@ -30,12 +30,10 @@ static const char* TAG = "main";
 #define LOGI(...) ESP_LOGI(__FILE_NAME__, __VA_ARGS__)
 #define LOGW(...) ESP_LOGW(__FILE_NAME__, __VA_ARGS__)
 #define LOGE(...) ESP_LOGE(__FILE_NAME__, __VA_ARGS__)
-#define LOGI_R(rtag, ...) ESP_LOGI(rtag, __VA_ARGS__)
 #else
 #define LOGI(...) do {} while(0)
 #define LOGW(...) do {} while(0)
 #define LOGE(...) do {} while(0)
-#define LOGI_R(rtag, ...) do {} while(0)
 #endif
 
 #if DEBUG_VERBOSE

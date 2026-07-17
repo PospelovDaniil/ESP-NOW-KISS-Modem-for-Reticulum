@@ -18,6 +18,26 @@ ESP-NOW fills the gap between:
 
 Use case: short to medium distance links where WiFi doesn't reach, but you don't need (or want to pay for) LoRa.
 
+## RNS config example
+
+```ini
+[[KISS ESP-NOW]]
+    type = KISSInterface
+
+    enabled = yes
+
+    port = /dev/ttyUSB0
+    speed = 57600
+    databits = 8
+    parity = none
+    stopbits = 1
+    preamble = 1
+    txtail = 1
+    persistence = 1
+    slottime = 1
+    flow_control = false
+```
+
 ## Hardware
 
 Tested on ESP32 DevKit board. Should also build for ESP32-S3, ESP32-C3 and other ESP32 variants.

@@ -88,7 +88,7 @@ bool Radio::init()
 
     esp_now_rate_config_t rate_cfg = {};
     rate_cfg.phymode = WIFI_PHY_MODE_LR;           // WIFI_PHY_MODE_LR / WIFI_PHY_MODE_11N / etc.
-    rate_cfg.rate    = WIFI_PHY_RATE_LORA_500K;    // WIFI_PHY_RATE_LORA_500K / WIFI_PHY_RATE_MCS7_LGI / etc.
+    rate_cfg.rate    = WIFI_PHY_RATE_1M_L;    // WIFI_PHY_RATE_LORA_500K / WIFI_PHY_RATE_MCS7_LGI / etc.
     rate_cfg.ersu    = false;
     rate_cfg.dcm     = false;
     esp_now_set_peer_rate_config(cfg::BROADCAST_MAC, &rate_cfg);

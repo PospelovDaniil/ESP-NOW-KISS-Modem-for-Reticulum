@@ -43,7 +43,7 @@ static const char* TAG = "main";
 #endif
 
 // ── async log: ring buffer + low-priority task ─────────────────
-#if DEBUG_LOGS
+#if DEBUG_LOGS && HAS_DEBUG_UART
 static constexpr size_t LOG_BUF_SIZE    = 8192;
 static constexpr size_t LOG_MSG_MAX     = 1200;
 static char             s_log_buf[LOG_BUF_SIZE];
@@ -560,8 +560,10 @@ extern "C" void app_main(void)
     esp_log_level_set("radio", ESP_LOG_VERBOSE);
     LOGI("KISS UART%d: GPIO%d TX / GPIO%d RX @ %d baud",
          cfg::UART_PORT, cfg::UART_TX_PIN, cfg::UART_RX_PIN, cfg::UART_BAUD);
+#if HAS_DEBUG_UART
     LOGI("Debug UART%d: GPIO%d TX / GPIO%d RX @ %d baud",
          cfg::DEBUG_UART_PORT, cfg::DEBUG_TX_PIN, cfg::DEBUG_RX_PIN, cfg::DEBUG_UART_BAUD);
+#endif
     LOGI("ESP-NOW channel %d, broadcast, frag_max=%zu",
          cfg::WIFI_CHANNEL, cfg::FRAG_MAX_DATA);
     LOGI("Stats dump every %lu ms", STATS_INTERVAL_MS);

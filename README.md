@@ -1,10 +1,10 @@
 # Modem RNS ESP-NOW
 
-KISS modem firmware for ESP32, bridging [Reticulum Network Stack](https://github.com/markqvist/Reticulum) (RNS/NomadNet) to ESP-NOW wireless.
+KISS modem firmware for ESP32 and ESP8266, bridging [Reticulum Network Stack](https://github.com/markqvist/Reticulum) (RNS/NomadNet) to ESP-NOW wireless.
 
 ## What is this
 
-Firmware that turns cheap ESP32 boards into wireless KISS modems using ESP-NOW protocol. Two ESP32 devices run this firmware and transparently pass RNS traffic between each other over ESP-NOW.
+Firmware that turns cheap ESP32/ESP8266 boards into wireless KISS modems using ESP-NOW protocol. Two devices run this firmware and transparently pass RNS traffic between each other over ESP-NOW — including cross-chip communication (ESP32 ↔ ESP8266).
 
 ## Why ESP-NOW
 
@@ -20,7 +20,13 @@ Use case: short to medium distance links where WiFi doesn't reach, but you don't
 
 ## Development environment
 
+**ESP32:**
 - ESP-IDF v6.0.2
+- VS Code extension: ESP-IDF
+
+**ESP8266:**
+- [ESP8266 RTOS SDK](https://github.com/espressif/ESP8266_RTOS_SDK)
+- VS Code extension: ESP8266-IDF
 
 ## RNS config example
 
@@ -44,22 +50,22 @@ Use case: short to medium distance links where WiFi doesn't reach, but you don't
 
 ## Hardware
 
-Tested on ESP32 DevKit board. Should also build for ESP32-S3, ESP32-C3 and other ESP32 variants.
+Tested on ESP32 DevKit and ESP8266 boards. ESP32 firmware should also build for ESP32-S3, ESP32-C3 and other ESP32 variants.
 
 ## Configuration
 
-Radio parameters (PHY rate, Long Range mode) are hardcoded in `radio.cpp`. Default rate is `WIFI_PHY_RATE_LORA_500K`. Changing the rate requires editing the source and reflashing.
+Radio parameters (PHY rate, Long Range mode) are hardcoded in `radio.cpp`. Default rate is `WIFI_PHY_RATE_1M_L` for cross-chip ESP-NOW compatibility. Changing the rate requires editing the source and reflashing.
 
 ## Current state
 
-- ESP32 firmware working with RNS over KISS
+- ESP32 and ESP8266 firmware working with RNS over KISS
+- Cross-chip ESP-NOW: ESP32 ↔ ESP8266 compatible
 - ESP-NOW channel 13, broadcast mode, no encryption
 - Fragmentation/reassembly for frames up to 500 bytes
 - CRC16 transport integrity check
-- Long Range mode + configurable PHY rate
+- Long Range mode + configurable PHY rate (ESP32)
 - No guarantees of support or maintenance — sharing my work for anyone interested
 
 ## Future plans
 
 - `ESPNowInterface` for RNS — similar to `RNodeInterface`, but for ESP-NOW, allowing convenient configuration of radio parameters at runtime
-- Backward compatibility between ESP-NOW on ESP32 and ESP8266

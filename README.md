@@ -21,12 +21,12 @@ Use case: short to medium distance links where WiFi doesn't reach, but you don't
 ## Development environment
 
 **ESP32:**
-- ESP-IDF v6.0.2
-- VS Code extension: ESP-IDF
+- [ESP-IDF v6.0.2](https://docs.espressif.com/projects/esp-idf/en/v6.0.2/esp32/get-started/index.html)
+- VS Code extension: [ESP-IDF](https://marketplace.visualstudio.com/items?itemName=espressif.esp-idf-extension)
 
 **ESP8266:**
 - [ESP8266 RTOS SDK](https://github.com/espressif/ESP8266_RTOS_SDK)
-- VS Code extension: ESP8266-IDF
+- VS Code extension: [ESP8266-IDF](https://marketplace.visualstudio.com/items?itemName=Dzantemir.esp8266-idf)
 
 ## RNS config example
 

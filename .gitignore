@@ -1,4 +1,5 @@
 build/
+firmware_build/
 sdkconfig
 sdkconfig.old
 *.bin
